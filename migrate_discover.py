@@ -74,24 +74,27 @@ def refresh_access_token():
 
 def get_discover_weekly(access_token):
     headers = {'Authorization': f'Bearer {access_token}'}
+    url = 'https://api.spotify.com/v1/me/playlists'
     
-    # Check user-owned playlists first
-    user_playlists_url = 'https://api.spotify.com/v1/me/playlists'
-    while user_playlists_url:
-        response = requests.get(user_playlists_url, headers=headers)
+    # First get current user's actual ID
+    user_profile = requests.get('https://api.spotify.com/v1/me', headers=headers).json()
+    current_user_id = user_profile['id']
+    
+    while url:
+        response = requests.get(url, headers=headers)
         data = response.json()
+        
         for playlist in data['items']:
-            print(f"Checking playlist: {playlist['name']}")
+            
+            
+            # Case-insensitive partial name match and check ownership
             if 'discover weekly' in playlist['name'].lower():
-                return playlist['id']
-        user_playlists_url = data.get('next')
-    
-    # Fallback: Search Spotify's public catalog
-    search_url = 'https://api.spotify.com/v1/search?q=Discover+Weekly&type=playlist&limit=1'
-    search_response = requests.get(search_url, headers=headers).json()
-    for playlist in search_response['playlists']['items']:
-        if playlist['owner']['id'] == 'spotify':
-            return playlist['id']
+                print(f"Debug: {playlist['name']} [{playlist['owner']['id']}]")  # Keep debug
+                # Match either official Spotify version OR your personal copies
+                if playlist['name'].lower() == 'discover weekly' and playlist['owner']['id'] == 'spotify':
+                    return playlist['id']
+        
+        url = data.get('next')
     return None
 
 def get_playlist_tracks(access_token, playlist_id):
