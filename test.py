@@ -64,9 +64,7 @@ def get_user_favorites(user, fav_type, raw=False):
 
 
 if __name__ == '__main__':
-    # protect main from IOError occuring with a pipe command
     try:
         main()
-    except IOError as _e:
-        if _e.errno not in [22, 32]:
-            raise _e
+    except IOError as e:
+        raise e
