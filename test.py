@@ -18,7 +18,7 @@ def main():
             qobuz.api.register_app(app_id, secret)
             user = dotenv.dotenv_values(".env")
             if user.get("QOBUZ_USER") and user.get("QOBUZ_PASS"):
-                qobuz.api.login(user["QOBUZ_USER"], user["QOBUZ_PASS"])
+                user = qobuz.User(user["QOBUZ_USER"], user["QOBUZ_PASS"])
             else:
                 print("No Qobuz credentials found in .env file. Please set QOBUZ_USER and QOBUZ_PASS.")
                 return
@@ -28,7 +28,10 @@ def main():
         except Exception as e:
             print(f"Failed to register with secret {secret}: {e}")    
         qobuz.api.register_app(app_id, secrets[0])
-    get_user_favorites(user, "tracks")
+    tracks = get_user_favorites(user, "tracks")
+    print(tracks)
+    for track in tracks:
+        print(f"Track: {track.title}")    
 
 def get_user_favorites(user, fav_type, raw=False):
     '''
