@@ -1,2 +1,71 @@
 .env
 .spotify_token
+
+# Ignore Python compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Ignore virtual environment directories
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Ignore pyenv local version file
+.python-version
+
+# Ignore other Python-related files
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore distribution/build directories
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+
+# Ignore tests cache
+.tox/
+.nox/
+.cache/
+
+# Ignore coverage reports
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+nosetests.xml
+
+# Ignore mypy cache
+.mypy_cache/
+dmypy.json
+dmypy.json.*/
+
+# Ignore others
+*.log
+*.pot
+*.mo
+*.pid
+*.pid.lock
+*.log
+*.sqlite3
+*.db
+*.DS_Store
+*.swp
+*.swo
