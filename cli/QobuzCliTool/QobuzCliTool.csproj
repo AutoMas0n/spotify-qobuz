@@ -5,6 +5,11 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../QobuzApiSharp/QobuzApiSharp/QobuzApiSharp.csproj" />
+  </ItemGroup>
 
 </Project>

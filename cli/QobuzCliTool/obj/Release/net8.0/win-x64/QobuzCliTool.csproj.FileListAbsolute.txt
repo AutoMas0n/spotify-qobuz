@@ -1,0 +1,5 @@
+/home/jesse/GitHub/spotify-qobuz/cli/QobuzCliTool/obj/Release/net8.0/win-x64/QobuzCliTool.GeneratedMSBuildEditorConfig.editorconfig
+/home/jesse/GitHub/spotify-qobuz/cli/QobuzCliTool/obj/Release/net8.0/win-x64/QobuzCliTool.AssemblyInfoInputs.cache
+/home/jesse/GitHub/spotify-qobuz/cli/QobuzCliTool/obj/Release/net8.0/win-x64/QobuzCliTool.AssemblyInfo.cs
+/home/jesse/GitHub/spotify-qobuz/cli/QobuzCliTool/obj/Release/net8.0/win-x64/QobuzCliTool.csproj.CoreCompileInputs.cache
+/home/jesse/GitHub/spotify-qobuz/cli/QobuzCliTool/obj/Release/net8.0/win-x64/QobuzCliTool.sourcelink.json
