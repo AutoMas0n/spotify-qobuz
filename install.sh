@@ -1,0 +1,1 @@
+bin/pip install git+https://github.com/fdenivac/python-qobuz
