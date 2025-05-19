@@ -3,7 +3,7 @@ import os
 import json
 from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
 
@@ -49,7 +49,8 @@ def get_refresh_token():
             'grant_type': 'authorization_code',
             'code': code,
             'redirect_uri': REDIRECT_URI
-        }
+        },
+        timeout=10
     )
     tokens = response.json()
     with open(TOKEN_FILE, 'w') as f:
@@ -60,14 +61,14 @@ def refresh_access_token():
     """Get new access token using refresh token"""
     with open(TOKEN_FILE) as f:
         tokens = json.load(f)
-    
     response = requests.post(
         'https://accounts.spotify.com/api/token',
         auth=HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET),
         data={
             'grant_type': 'refresh_token',
             'refresh_token': tokens['refresh_token']
-        }
+        },
+        timeout=10
     )
     return response.json()['access_token']
 
@@ -75,13 +76,13 @@ def refresh_access_token():
 def get_discover_weekly(access_token):
     headers = {'Authorization': f'Bearer {access_token}'}
     url = 'https://api.spotify.com/v1/me/playlists'
-    
-    # First get current user's actual ID
-    user_profile = requests.get('https://api.spotify.com/v1/me', headers=headers).json()
+    user_profile = requests.get('https://api.spotify.com/v1/me', headers=headers, timeout=10).json()
     current_user_id = user_profile['id']
     
     while url:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=10)
+        data = response.json()
+        response = requests.get(url, headers=headers, timeout=10)
         data = response.json()
         
         for playlist in data['items']:
@@ -99,8 +100,8 @@ def get_discover_weekly(access_token):
 
 def get_playlist_tracks(access_token, playlist_id):
     headers = {'Authorization': f'Bearer {access_token}'}
-    tracks_url = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
-    
+    tracks_response = requests.get(tracks_url, headers=headers, timeout=10)
+    return tracks_response.json()['items']
     tracks_response = requests.get(tracks_url, headers=headers)
     return tracks_response.json()['items']
 

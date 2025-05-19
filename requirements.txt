@@ -1,2 +1,5 @@
 qobuz-dl
 dotenv
+spotipy
+beautifulsoup4
+qobuz

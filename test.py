@@ -1,4 +1,3 @@
-import sys
 import qobuz
 from qobuz_dl.bundle import Bundle
 import dotenv
@@ -34,7 +33,7 @@ def main():
         print(f"Track: {track.title}")    
 
 def get_user_favorites(user, fav_type, raw=False):
-    '''
+    """
     Returns all user favorites
 
     Parameters
@@ -44,7 +43,7 @@ def get_user_favorites(user, fav_type, raw=False):
     fav_type: str
         favorites type: 'tracks', 'albums', 'artists'
     limi
-    '''
+    """
     limit = 500
     offset = 0
     favorites = []
