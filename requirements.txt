@@ -3,3 +3,4 @@ dotenv
 spotipy
 beautifulsoup4
 qobuz
+schedule

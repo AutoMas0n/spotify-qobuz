@@ -22,7 +22,7 @@ def main():
                 print("No Qobuz credentials found in .env file. Please set QOBUZ_USER and QOBUZ_PASS.")
                 return
             # Attempt to login with the provided credentials
-            print(f"Successfully logged in!")
+            print("Successfully logged in!")
             break  # Exit loop if registration is successful
         except Exception as e:
             print(f"Failed to register with secret {secret}: {e}")    

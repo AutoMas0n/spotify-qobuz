@@ -1,3 +1,5 @@
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
 import requests
 import os
 import json
@@ -7,14 +9,17 @@ from http.server import BaseHTTPRequestHandler
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
 
+from savify.savify_scheduler import playlist_exists,get_discover_weekly_date,archive_discover_weekly,create_new_playlist
+
 # Load environment variables from .env file
 load_dotenv()
 
 # Configuration (store these securely in environment variables)
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
-REDIRECT_URI = "http://localhost:8080"
+REDIRECT_URI = "http://127.0.0.1:8080"
 TOKEN_FILE = ".spotify_token"
+SOURCE_PLAYLIST_PUBLIC_URL = "https://open.spotify.com/playlist/37i9dQZEVXcQtPyCIvdJFH?si=JjoR7HFvTiaH7hFrHrkH7w"
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -72,38 +77,25 @@ def refresh_access_token():
     )
     return response.json()['access_token']
 
+def archive_discover_weekly_task():
+    auth_manager = SpotifyOAuth(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=["playlist-read-private", "playlist-modify-private"]
+    )
 
-def get_discover_weekly(access_token):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = 'https://api.spotify.com/v1/me/playlists'
-    user_profile = requests.get('https://api.spotify.com/v1/me', headers=headers, timeout=10).json()
-    current_user_id = user_profile['id']
-    
-    while url:
-        response = requests.get(url, headers=headers, timeout=10)
-        data = response.json()
-        response = requests.get(url, headers=headers, timeout=10)
-        data = response.json()
-        
-        for playlist in data['items']:
-            
-            
-            # Case-insensitive partial name match and check ownership
-            if 'discover weekly' in playlist['name'].lower():
-                print(f"Debug: {playlist['name']} [{playlist['owner']['id']}]")  # Keep debug
-                # Match either official Spotify version OR your personal copies
-                if playlist['name'].lower() == 'discover weekly' and playlist['owner']['id'] == 'spotify':
-                    return playlist['id']
-        
-        url = data.get('next')
-    return None
+    spotify_client = spotipy.Spotify(auth_manager=auth_manager)
+    user_id = spotify_client.current_user()["id"]
+    # Check for duplicates
+    if playlist_exists(spotify_client, user_id):
+        print(f"Playlist for the week of {get_discover_weekly_date()} already exists. Skipping...")
+        return
 
-def get_playlist_tracks(access_token, playlist_id):
-    headers = {'Authorization': f'Bearer {access_token}'}
-    tracks_response = requests.get(tracks_url, headers=headers, timeout=10)
-    return tracks_response.json()['items']
-    tracks_response = requests.get(tracks_url, headers=headers)
-    return tracks_response.json()['items']
+    # Create and archive
+    new_playlist = create_new_playlist(spotify_client, user_id)
+    archive_discover_weekly(spotify_client, user_id, new_playlist, SOURCE_PLAYLIST_PUBLIC_URL)
+    print(f"Archived Discover Weekly for the week of {get_discover_weekly_date()}")
 
 def main():
     # Check for existing token
@@ -111,28 +103,8 @@ def main():
         get_refresh_token()
     
     # Get access token
-    access_token = refresh_access_token()
-    
-    if not access_token:
-        print("Failed to get access token")
-        return
-    
-    # Step 3: Find Discover Weekly playlist
-    playlist_id = get_discover_weekly(access_token)
-    if not playlist_id:
-        print("Discover Weekly playlist not found")
-        return
-    
-    # Step 4: Get playlist tracks
-    tracks = get_playlist_tracks(access_token, playlist_id)
-    
-    # Print tracks
-    print("\nDiscover Weekly Playlist Tracks:")
-    for idx, item in enumerate(tracks, 1):
-        track = item['track']
-        if track:  # Check if track exists (might be None if unavailable)
-            artists = ", ".join([artist['name'] for artist in track['artists']])
-            print(f"{idx}. {track['name']} by {artists}")
+    refresh_access_token()
+    archive_discover_weekly_task()
 
 
 if __name__ == "__main__":
