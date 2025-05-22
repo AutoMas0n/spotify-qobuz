@@ -106,6 +106,12 @@ def archive_playlist(client):
     else:
         print("No tracks found to archive")
 
+async def save_discover_weekly_tracks_to_json(filename="discover_weekly_tracks.json"):
+    tracks = await get_discover_weekly_tracks()
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(tracks, f, ensure_ascii=False, indent=2)
+    print(f"Saved {len(tracks)} tracks to {filename}")
+
 def main():
     client = get_spotify_client()
     
@@ -116,7 +122,8 @@ def main():
         print("Authentication failed. Please check your credentials.")
         return
     
-    archive_playlist(client)
+    # archive_playlist(client)
+    asyncio.run(save_discover_weekly_tracks_to_json())
 
 if __name__ == "__main__":
     main()
