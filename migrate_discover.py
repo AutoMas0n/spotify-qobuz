@@ -3,109 +3,120 @@ from spotipy.oauth2 import SpotifyOAuth
 import requests
 import os
 import json
+import asyncio
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from requests.auth import HTTPBasicAuth
-from http.server import BaseHTTPRequestHandler
-import urllib.parse as urlparse
-from urllib.parse import parse_qs
-
-from savify.savify_scheduler import playlist_exists,get_discover_weekly_date,archive_discover_weekly,create_new_playlist
+from lxml.html import fromstring
+from playwright.async_api import async_playwright
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Configuration (store these securely in environment variables)
+# Configuration
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
-REDIRECT_URI = "http://127.0.0.1:8080"
+REDIRECT_URI = "http://localhost:8080"
 TOKEN_FILE = ".spotify_token"
-SOURCE_PLAYLIST_PUBLIC_URL = "https://open.spotify.com/playlist/37i9dQZEVXcQtPyCIvdJFH?si=JjoR7HFvTiaH7hFrHrkH7w"
+SOURCE_PLAYLIST_URL = "https://open.spotify.com/playlist/37i9dQZEVXcQtPyCIvdJFH"
 
-class RequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        query = urlparse.urlparse(self.path).query
-        params = parse_qs(query)
-        code = params.get('code', [None])[0]
-        if code:
-            self.server.code = code
-            self.wfile.write(b"Authorization successful! You can close this window.")
-        else:
-            self.wfile.write(b"Authorization failed.")
+async def fetch_playlist_content(url):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.goto(url, wait_until='networkidle')
+        await page.wait_for_timeout(3000)
+        content = await page.content()
+        await browser.close()
+        return content
 
-
-def get_refresh_token():
-    """Initial one-time setup to get refresh token"""
-    from requests.auth import HTTPBasicAuth
+def scrape_playlist_tracks(html_content):
+    parser = fromstring(html_content)
+    tracks = []
     
-    auth_url = f"https://accounts.spotify.com/authorize?response_type=code&client_id={CLIENT_ID}&scope=playlist-read-private&redirect_uri={REDIRECT_URI}"
-    print(f"Perform ONE-TIME setup:\n1. Visit this URL in your browser:\n{auth_url}")
-    print("2. After redirect, paste the full callback URL here:")
-    callback_url = input("Paste URL here: ").split('?code=')[1]
-    code = callback_url.split('&')[0]
+    # Extract track elements
+    track_elements = parser.xpath('//div[@data-testid="tracklist-row"]')
+    print(f"Found {len(track_elements)} tracks.")
+    
+    for element in track_elements:
+        track_name = element.xpath('.//a[@data-testid="internal-track-link"]/div/text()')
+        # Updated XPath: find all <a> with href containing '/artist/' under this track row
+        artist_names = element.xpath('.//a[contains(@href, "/artist/")]/text()')
+        artist_name = ", ".join(artist_names) if artist_names else ""
+        print(f"Track: {track_name}, Artist: {artist_name}")
+        
+        if track_name and artist_name:
+            tracks.append({
+                'track': track_name[0],
+                'artist': artist_name
+            })
+    
+    return tracks
 
-    # Exchange code for refresh token
-    response = requests.post(
-        'https://accounts.spotify.com/api/token',
-        auth=HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET),
-        data={
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': REDIRECT_URI
-        },
-        timeout=10
-    )
-    tokens = response.json()
-    with open(TOKEN_FILE, 'w') as f:
-        json.dump(tokens, f)
-    return tokens['refresh_token']
-
-def refresh_access_token():
-    """Get new access token using refresh token"""
-    with open(TOKEN_FILE) as f:
-        tokens = json.load(f)
-    response = requests.post(
-        'https://accounts.spotify.com/api/token',
-        auth=HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET),
-        data={
-            'grant_type': 'refresh_token',
-            'refresh_token': tokens['refresh_token']
-        },
-        timeout=10
-    )
-    return response.json()['access_token']
-
-def archive_discover_weekly_task():
+def get_spotify_client():
     auth_manager = SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
-        scope=["playlist-read-private", "playlist-modify-private"]
+        scope="playlist-modify-private",
+        cache_path=TOKEN_FILE
     )
+    return spotipy.Spotify(auth_manager=auth_manager)
 
-    spotify_client = spotipy.Spotify(auth_manager=auth_manager)
-    user_id = spotify_client.current_user()["id"]
-    # Check for duplicates
-    if playlist_exists(spotify_client, user_id):
-        print(f"Playlist for the week of {get_discover_weekly_date()} already exists. Skipping...")
-        return
+def get_track_uri(client, track_name, artist_name):
+    query = f"track:{track_name} artist:{artist_name}"
+    results = client.search(q=query, type='track', limit=1)
+    if results['tracks']['items']:
+        return results['tracks']['items'][0]['uri']
+    return None
 
-    # Create and archive
-    new_playlist = create_new_playlist(spotify_client, user_id)
-    archive_discover_weekly(spotify_client, user_id, new_playlist, SOURCE_PLAYLIST_PUBLIC_URL)
-    print(f"Archived Discover Weekly for the week of {get_discover_weekly_date()}")
+def get_discover_weekly_date():
+    today = datetime.now()
+    last_monday = today - timedelta(days=today.weekday())
+    return last_monday.strftime("%d-%m-%y")
+
+async def get_discover_weekly_tracks():
+    html_content = await fetch_playlist_content(SOURCE_PLAYLIST_URL)
+    return scrape_playlist_tracks(html_content)
+
+def archive_playlist(client):
+    user_id = client.current_user()['id']
+    playlist_name = f"[ARCH] DW {get_discover_weekly_date()}"
+    
+    # Create new playlist
+    new_playlist = client.user_playlist_create(
+        user=user_id,
+        name=playlist_name,
+        public=False,
+        description=f"Archived Discover Weekly - {get_discover_weekly_date()}"
+    )
+    
+    # Get track URIs
+    raw_tracks = asyncio.run(get_discover_weekly_tracks())
+    track_uris = []
+    
+    for track in raw_tracks:
+        uri = get_track_uri(client, track['track'], track['artist'])
+        if uri:
+            track_uris.append(uri)
+    
+    # Add tracks to playlist
+    if track_uris:
+        client.playlist_add_items(new_playlist['id'], track_uris)
+        print(f"Successfully archived {len(track_uris)} tracks to {playlist_name}")
+    else:
+        print("No tracks found to archive")
 
 def main():
-    # Check for existing token
-    if not os.path.exists(TOKEN_FILE):
-        get_refresh_token()
+    client = get_spotify_client()
     
-    # Get access token
-    refresh_access_token()
-    archive_discover_weekly_task()
-
+    # Verify authentication
+    try:
+        client.current_user()
+    except spotipy.exceptions.SpotifyException:
+        print("Authentication failed. Please check your credentials.")
+        return
+    
+    archive_playlist(client)
 
 if __name__ == "__main__":
     main()

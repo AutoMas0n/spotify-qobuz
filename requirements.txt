@@ -4,3 +4,5 @@ spotipy
 beautifulsoup4
 qobuz
 schedule
+playwright
+lxml
