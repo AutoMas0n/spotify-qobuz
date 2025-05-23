@@ -1,6 +1,5 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-import requests
 import os
 import json
 import asyncio
@@ -17,7 +16,8 @@ CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 REDIRECT_URI = "http://localhost:8080"
 TOKEN_FILE = ".spotify_token"
-SOURCE_PLAYLIST_URL = "https://open.spotify.com/playlist/37i9dQZEVXcQtPyCIvdJFH"
+SOURCE_PLAYLIST_ID = "37i9dQZEVXcQtPyCIvdJFH"
+SOURCE_PLAYLIST_URL = f"https://open.spotify.com/playlist/{SOURCE_PLAYLIST_ID}"
 
 async def fetch_playlist_content(url):
     async with async_playwright() as p:

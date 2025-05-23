@@ -2,6 +2,8 @@ savify/.env
 .env
 .spotify_token
 
+.cache
+
 # Ignore Python compiled files
 *.pyc
 *.pyo

@@ -4,6 +4,7 @@ import dotenv
 import asyncio
 import json
 from spotify_discover import get_discover_weekly_tracks  # Import the async function
+import datetime
 
 def get_user_favorites(user, fav_type, raw=False):
     """
@@ -138,7 +139,9 @@ def main():
         except Exception as e:
             print(f"Failed to register with secret {secret}: {e}")
         qobuz.api.register_app(app_id, secrets[0])
-    playlist = create_playlist(user, "Spotify Discover Weekly", "Spotify Discover Weekly Copy")
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    playlist_name = f"Spotify Discover Weekly {timestamp}"
+    playlist = create_playlist(user, playlist_name, "Spotify Discover Weekly Copy")
     if playlist:
         qobuz_tracks = get_ids_from_spotify_tracks(user)
         print(f"Adding {len(qobuz_tracks)} tracks to the playlist...")
