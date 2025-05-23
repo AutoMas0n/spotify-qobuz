@@ -16,8 +16,24 @@ CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 REDIRECT_URI = "http://localhost:8080"
 TOKEN_FILE = ".spotify_token"
-SOURCE_PLAYLIST_ID = "37i9dQZEVXcQtPyCIvdJFH"
-SOURCE_PLAYLIST_URL = f"https://open.spotify.com/playlist/{SOURCE_PLAYLIST_ID}"
+
+# Support multiple playlist IDs from .env, comma-separated
+PLAYLIST_IDS = os.getenv('SPOTIFY_PLAYLIST_IDS', '').split(',')
+PLAYLIST_IDS = [pid.strip() for pid in PLAYLIST_IDS if pid.strip()]
+
+# Support mapping playlist IDs to names from .env, format: name1:id1,name2:id2
+PLAYLIST_MAP_RAW = os.getenv('SPOTIFY_PLAYLIST_MAP', '')
+PLAYLIST_MAP = {}
+for entry in PLAYLIST_MAP_RAW.split(','):
+    if ':' in entry:
+        name, pid = entry.split(':', 1)
+        name = name.strip()
+        pid = pid.strip()
+        if name and pid:
+            PLAYLIST_MAP[name] = pid
+
+def get_playlist_url(playlist_id):
+    return f"https://open.spotify.com/playlist/{playlist_id}"
 
 async def fetch_playlist_content(url):
     async with async_playwright() as p:
@@ -74,56 +90,32 @@ def get_discover_weekly_date():
     last_monday = today - timedelta(days=today.weekday())
     return last_monday.strftime("%d-%m-%y")
 
-async def get_discover_weekly_tracks():
-    html_content = await fetch_playlist_content(SOURCE_PLAYLIST_URL)
+async def get_playlist_tracks(playlist_id):
+    url = get_playlist_url(playlist_id)
+    html_content = await fetch_playlist_content(url)
     return scrape_playlist_tracks(html_content)
 
-def archive_playlist(client):
-    user_id = client.current_user()['id']
-    playlist_name = f"[ARCH] DW {get_discover_weekly_date()}"
-    
-    # Create new playlist
-    new_playlist = client.user_playlist_create(
-        user=user_id,
-        name=playlist_name,
-        public=False,
-        description=f"Archived Discover Weekly - {get_discover_weekly_date()}"
-    )
-    
-    # Get track URIs
-    raw_tracks = asyncio.run(get_discover_weekly_tracks())
-    track_uris = []
-    
-    for track in raw_tracks:
-        uri = get_track_uri(client, track['track'], track['artist'])
-        if uri:
-            track_uris.append(uri)
-    
-    # Add tracks to playlist
-    if track_uris:
-        client.playlist_add_items(new_playlist['id'], track_uris)
-        print(f"Successfully archived {len(track_uris)} tracks to {playlist_name}")
-    else:
-        print("No tracks found to archive")
-
-async def save_discover_weekly_tracks_to_json(filename="discover_weekly_tracks.json"):
-    tracks = await get_discover_weekly_tracks()
+async def save_playlist_tracks_to_json(playlist_id, filename):
+    tracks = await get_playlist_tracks(playlist_id)
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(tracks, f, ensure_ascii=False, indent=2)
     print(f"Saved {len(tracks)} tracks to {filename}")
 
 def main():
     client = get_spotify_client()
-    
     # Verify authentication
     try:
         client.current_user()
     except spotipy.exceptions.SpotifyException:
         print("Authentication failed. Please check your credentials.")
         return
-    
-    # archive_playlist(client)
-    asyncio.run(save_discover_weekly_tracks_to_json())
+
+    # For each playlist name/id, fetch and save tracks to a mapped JSON file
+    async def process_all_playlists():
+        for name, playlist_id in PLAYLIST_MAP.items():
+            filename = f"{name}_tracks.json"
+            await save_playlist_tracks_to_json(playlist_id, filename)
+    asyncio.run(process_all_playlists())
 
 if __name__ == "__main__":
     main()
