@@ -3,6 +3,7 @@ from qobuz_dl.bundle import Bundle
 import dotenv
 import asyncio
 import json
+from spotify_discover import get_discover_weekly_tracks  # Import the async function
 import datetime
 
 def get_user_favorites(user, fav_type, raw=False):
@@ -70,7 +71,7 @@ def create_playlist(user, name, description=None, is_public=0, is_collaborative=
 
 
 
-async def get_ids_from_json_tracks_async():
+async def get_ids_from_spotify_tracks_async():
     """
     Fetches tracks from Spotify Discover Weekly and searches for them on Qobuz.
     Returns a list of Qobuz track IDs.
@@ -89,16 +90,18 @@ async def get_ids_from_json_tracks_async():
             print(f"Error searching Qobuz for '{title}' by '{artist}': {e}")
     return qobuz_ids
 
-def get_ids_from_json_tracks():
+def get_ids_from_spotify_tracks():
     """
-    Synchronous wrapper for get_ids_from_json_tracks_async.
+    Synchronous wrapper for get_ids_from_spotify_tracks_async.
     """
-    return asyncio.run(get_ids_from_json_tracks_async())
+    return asyncio.run(get_ids_from_spotify_tracks_async())
 
-def get_ids_from_json_tracks(user,tracks):
+def get_ids_from_spotify_tracks(user):
     """
     Loads tracks from spotify_discover.py, searches for them on Qobuz, and returns a list of Qobuz Track objects.
     """
+    from spotify_discover import get_discover_weekly_tracks
+    tracks = asyncio.run(get_discover_weekly_tracks())
     qobuz_tracks = []
     for track in tracks:
         title = track['track']
@@ -140,8 +143,7 @@ def main():
     playlist_name = f"Spotify Discover Weekly {timestamp}"
     playlist = create_playlist(user, playlist_name, "Spotify Discover Weekly Copy")
     if playlist:
-        tracks = load_spotify_tracks()
-        qobuz_tracks = get_ids_from_json_tracks(user,tracks)
+        qobuz_tracks = get_ids_from_spotify_tracks(user)
         print(f"Adding {len(qobuz_tracks)} tracks to the playlist...")
         playlist.add_tracks(qobuz_tracks, user)
 

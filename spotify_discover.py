@@ -40,7 +40,59 @@ async def fetch_playlist_content(url):
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         await page.goto(url, wait_until='networkidle')
-        await page.wait_for_timeout(3000)
+        # Correct scroll container selector - verify this matches Spotify's layout
+        scroll_container = '.main-view-container'
+        await page.wait_for_selector(scroll_container, state='attached')
+        element = await page.query_selector(scroll_container)
+
+        # Calculate dynamic scroll parameters
+        client_height = await page.evaluate('(element) => element.clientHeight', element)
+        scroll_distance = int(client_height * 0.8)  # Scroll 80% of viewport height
+        box = await element.bounding_box()
+
+        # Position mouse in scrollable area
+        target_x = box['x'] + box['width'] * 0.75
+        target_y = box['y'] + box['height'] * 0.75
+        await page.mouse.move(target_x, target_y)
+
+        prev_scroll = 0
+        current_scroll = 0
+        max_attempts = 50
+        threshold = 100  # Pixel threshold for considering bottom reached
+
+        for _ in range(max_attempts):
+            # Track previous state
+            prev_track_count = len(await page.query_selector_all('div[data-testid="tracklist-row"]'))
+            prev_scroll = current_scroll
+
+            # Perform scroll
+            await page.mouse.wheel(0, scroll_distance)
+            # Wait for content load with shorter timeout
+            try:
+                await page.wait_for_function(
+                    f'''() => {{
+                        const container = document.querySelector('{scroll_container}');
+                        return container.scrollTop > {prev_scroll};
+                    }}''',
+                    timeout=2000
+                )
+            except Exception:
+                pass
+
+            # Get updated metrics
+            current_scroll = await page.evaluate('(element) => element.scrollTop', element)
+            total_height = await page.evaluate('(element) => element.scrollHeight', element)
+            new_track_count = len(await page.query_selector_all('div[data-testid="tracklist-row"]'))
+
+            # Check termination conditions
+            if (current_scroll + client_height + threshold) >= total_height:
+                break
+            if new_track_count == prev_track_count and abs(current_scroll - prev_scroll) < 50:
+                break  # No new content and minimal scrolling
+
+            await page.wait_for_timeout(500)  # Additional short delay
+
+        await page.screenshot(path="playlist_screenshot.png")
         content = await page.content()
         await browser.close()
         return content
