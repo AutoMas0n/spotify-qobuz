@@ -1,6 +1,8 @@
 import qobuz
 from qobuz_dl.bundle import Bundle
 import dotenv
+import os
+import re
 import asyncio
 import json
 import datetime
@@ -111,39 +113,56 @@ def get_ids_from_json_tracks(user,tracks):
             print(f"Error searching Qobuz for '{title}' by '{artist}': {e}")
     return qobuz_tracks
 
+
+# Multi-account Qobuz support
+def get_qobuz_accounts():
+    env = os.environ
+    account_pattern = re.compile(r'QOBUZ_USER_(\d+)')
+    accounts = []
+    for key in env:
+        match = account_pattern.match(key)
+        if match:
+            idx = match.group(1)
+            user = env.get(f'QOBUZ_USER_{idx}')
+            pw = env.get(f'QOBUZ_PASS_{idx}')
+            if user and pw:
+                accounts.append({'idx': idx, 'user': user, 'pw': pw})
+    return accounts
+
 def main():
     bundle = Bundle()
     app_id = bundle.get_app_id()
     secrets = "\n".join(bundle.get_secrets().values())
-
     print(f"App ID: {app_id}")
     print(f"Secrets (the first usually works):{secrets}")
-
-    print("Registering app with Qobuz...")
-    secrets_list = secrets.split('\n')
-    for secret in secrets_list:
-        try:
-            qobuz.api.register_app(app_id, secret)
-            user = dotenv.dotenv_values(".env")
-            if user.get("QOBUZ_USER") and user.get("QOBUZ_PASS"):
-                user = qobuz.User(user["QOBUZ_USER"], user["QOBUZ_PASS"])
-            else:
-                print("No Qobuz credentials found in .env file. Please set QOBUZ_USER and QOBUZ_PASS.")
-                return
-            # Attempt to login with the provided credentials
-            print("Successfully logged in!")
-            break  # Exit loop if registration is successful
-        except Exception as e:
-            print(f"Failed to register with secret {secret}: {e}")
-        qobuz.api.register_app(app_id, secrets[0])
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    playlist_name = f"Spotify Discover Weekly {timestamp}"
-    playlist = create_playlist(user, playlist_name, "Spotify Discover Weekly Copy")
-    if playlist:
-        tracks = load_spotify_tracks()
-        qobuz_tracks = get_ids_from_json_tracks(user,tracks)
-        print(f"Adding {len(qobuz_tracks)} tracks to the playlist...")
-        playlist.add_tracks(qobuz_tracks, user)
+    accounts = get_qobuz_accounts()
+    if not accounts:
+        print("No Qobuz accounts found in environment. Please check your .env file.")
+        return
+    for account in accounts:
+        idx = account['idx']
+        print(f"\n=== Processing Qobuz account {idx} ({account['user']}) ===")
+        secrets_list = secrets.split('\n')
+        user_obj = None
+        for secret in secrets_list:
+            try:
+                qobuz.api.register_app(app_id, secret)
+                user_obj = qobuz.User(account['user'], account['pw'])
+                print("Successfully logged in!")
+                break
+            except Exception as e:
+                print(f"Failed to register with secret {secret}: {e}")
+        if not user_obj:
+            print(f"Could not authenticate Qobuz account {idx}. Skipping.")
+            continue
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        playlist_name = f"Spotify Discover Weekly {timestamp} ({idx})"
+        playlist = create_playlist(user_obj, playlist_name, "Spotify Discover Weekly Copy")
+        if playlist:
+            tracks = load_spotify_tracks()
+            qobuz_tracks = get_ids_from_json_tracks(user_obj, tracks)
+            print(f"Adding {len(qobuz_tracks)} tracks to the playlist...")
+            playlist.add_tracks(qobuz_tracks, user_obj)
 
 if __name__ == '__main__':
     try:

@@ -1,6 +1,7 @@
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
+import re
 import json
 import asyncio
 from datetime import datetime, timedelta
@@ -11,26 +12,39 @@ from playwright.async_api import async_playwright
 # Load environment variables from .env file
 load_dotenv()
 
-# Configuration
-CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
-CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+
+# Multi-account configuration
+def get_spotify_accounts():
+    env = os.environ
+    account_pattern = re.compile(r'SPOTIFY_CLIENT_ID_(\d+)')
+    accounts = []
+    for key in env:
+        match = account_pattern.match(key)
+        if match:
+            idx = match.group(1)
+            client_id = env.get(f'SPOTIFY_CLIENT_ID_{idx}')
+            client_secret = env.get(f'SPOTIFY_CLIENT_SECRET_{idx}')
+            playlist_ids = env.get(f'SPOTIFY_PLAYLIST_IDS_{idx}', '').split(',')
+            playlist_ids = [pid.strip() for pid in playlist_ids if pid.strip()]
+            playlist_map_raw = env.get(f'SPOTIFY_PLAYLIST_MAP_{idx}', '')
+            playlist_map = {}
+            for entry in playlist_map_raw.split(','):
+                if ':' in entry:
+                    name, pid = entry.split(':', 1)
+                    name = name.strip()
+                    pid = pid.strip()
+                    if name and pid:
+                        playlist_map[name] = pid
+            accounts.append({
+                'idx': idx,
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'playlist_ids': playlist_ids,
+                'playlist_map': playlist_map
+            })
+    return accounts
+
 REDIRECT_URI = "http://localhost:8080"
-TOKEN_FILE = ".spotify_token"
-
-# Support multiple playlist IDs from .env, comma-separated
-PLAYLIST_IDS = os.getenv('SPOTIFY_PLAYLIST_IDS', '').split(',')
-PLAYLIST_IDS = [pid.strip() for pid in PLAYLIST_IDS if pid.strip()]
-
-# Support mapping playlist IDs to names from .env, format: name1:id1,name2:id2
-PLAYLIST_MAP_RAW = os.getenv('SPOTIFY_PLAYLIST_MAP', '')
-PLAYLIST_MAP = {}
-for entry in PLAYLIST_MAP_RAW.split(','):
-    if ':' in entry:
-        name, pid = entry.split(':', 1)
-        name = name.strip()
-        pid = pid.strip()
-        if name and pid:
-            PLAYLIST_MAP[name] = pid
 
 def get_playlist_url(playlist_id):
     return f"https://open.spotify.com/playlist/{playlist_id}"
@@ -120,13 +134,13 @@ def scrape_playlist_tracks(html_content):
     
     return tracks
 
-def get_spotify_client():
+def get_spotify_client(client_id, client_secret, token_file):
     auth_manager = SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
+        client_id=client_id,
+        client_secret=client_secret,
         redirect_uri=REDIRECT_URI,
         scope="playlist-modify-private",
-        cache_path=TOKEN_FILE
+        cache_path=token_file
     )
     return spotipy.Spotify(auth_manager=auth_manager)
 
@@ -153,21 +167,31 @@ async def save_playlist_tracks_to_json(playlist_id, filename):
         json.dump(tracks, f, ensure_ascii=False, indent=2)
     print(f"Saved {len(tracks)} tracks to {filename}")
 
-def main():
-    client = get_spotify_client()
-    # Verify authentication
-    try:
-        client.current_user()
-    except spotipy.exceptions.SpotifyException:
-        print("Authentication failed. Please check your credentials.")
-        return
 
-    # For each playlist name/id, fetch and save tracks to a mapped JSON file
-    async def process_all_playlists():
-        for name, playlist_id in PLAYLIST_MAP.items():
-            filename = f"{name}_tracks.json"
-            await save_playlist_tracks_to_json(playlist_id, filename)
-    asyncio.run(process_all_playlists())
+def main():
+    accounts = get_spotify_accounts()
+    if not accounts:
+        print("No Spotify accounts found in environment. Please check your .env file.")
+        return
+    for account in accounts:
+        idx = account['idx']
+        client_id = account['client_id']
+        client_secret = account['client_secret']
+        playlist_map = account['playlist_map']
+        token_file = f".spotify_token_{idx}"
+        print(f"\n=== Processing Spotify account {idx} ===")
+        client = get_spotify_client(client_id, client_secret, token_file)
+        # Verify authentication
+        try:
+            client.current_user()
+        except spotipy.exceptions.SpotifyException:
+            print(f"Authentication failed for account {idx}. Skipping.")
+            continue
+        async def process_all_playlists():
+            for name, playlist_id in playlist_map.items():
+                filename = f"{name}_tracks_{idx}.json"
+                await save_playlist_tracks_to_json(playlist_id, filename)
+        asyncio.run(process_all_playlists())
 
 if __name__ == "__main__":
     main()
