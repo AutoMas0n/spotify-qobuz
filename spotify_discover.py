@@ -6,10 +6,14 @@ import asyncio
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from lxml.html import fromstring
+
 from playwright.async_api import async_playwright
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Print loaded environment variables for debugging
+print("Loaded SPOTIFY_PLAYLIST_MAP:", os.getenv('SPOTIFY_PLAYLIST_MAP'))
 
 # Configuration
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
@@ -154,13 +158,13 @@ async def save_playlist_tracks_to_json(playlist_id, filename):
     print(f"Saved {len(tracks)} tracks to {filename}")
 
 def main():
-    client = get_spotify_client()
-    # Verify authentication
-    try:
-        client.current_user()
-    except spotipy.exceptions.SpotifyException:
-        print("Authentication failed. Please check your credentials.")
-        return
+    # client = get_spotify_client()
+    # # Verify authentication
+    # try:
+    #     client.current_user()
+    # except spotipy.exceptions.SpotifyException:
+    #     print("Authentication failed. Please check your credentials.")
+    #     return
 
     # For each playlist name/id, fetch and save tracks to a mapped JSON file
     async def process_all_playlists():
