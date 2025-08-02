@@ -6,7 +6,6 @@ import asyncio
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from lxml.html import fromstring
-
 from playwright.async_api import async_playwright
 
 # Load environment variables from .env file
@@ -42,7 +41,8 @@ def get_playlist_url(playlist_id):
 async def fetch_playlist_content(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context()  # Create an incognito browser context
+        page = await context.new_page()
         await page.goto(url, wait_until='networkidle')
         # Correct scroll container selector - verify this matches Spotify's layout
         scroll_container = '.main-view-container'
