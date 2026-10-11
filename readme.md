@@ -2,6 +2,10 @@
 
 This project helps you transfer your Spotify Discover Weekly playlist to Qobuz.
 
+## Caution: Unmaintained Project
+
+This project is not actively maintained - use with caution
+
 ## Config
 
 1. Open your discover weekly playlist in spotify and save the playlist, make sure it is publicly accessible
